@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database.dependencies import get_db
+from app.dependencies.auth import get_current_user
 
 from app.schemas.patient import (
     PatientCreate,
@@ -11,14 +12,16 @@ from app.schemas.patient import (
 
 from app.services.patient_service import PatientService
 
-from app.dependencies.auth import get_current_user
-
 
 router = APIRouter(
     prefix="/patients",
-    tags=["Patients"],
+    tags=["Patients"]
 )
 
+
+# ==========================================================
+# Create Patient
+# ==========================================================
 
 @router.post(
     "/",
@@ -36,12 +39,17 @@ def create_patient(
     )
 
 
+
+# ==========================================================
+# Search Patients
+# ==========================================================
+
 @router.get(
     "/search",
     response_model=list[PatientResponse]
 )
 def search_patients(
-    q: str = Query(...),
+    q: str = Query(..., min_length=1),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
@@ -52,6 +60,11 @@ def search_patients(
     )
 
 
+
+# ==========================================================
+# Get All Patients
+# ==========================================================
+
 @router.get(
     "/",
     response_model=list[PatientResponse]
@@ -61,8 +74,15 @@ def get_patients(
     current_user=Depends(get_current_user)
 ):
 
-    return PatientService.get_all(db)
+    return PatientService.get_all(
+        db
+    )
 
+
+
+# ==========================================================
+# Get Single Patient
+# ==========================================================
 
 @router.get(
     "/{patient_id}",
@@ -79,14 +99,22 @@ def get_patient(
         patient_id
     )
 
+
     if not patient:
+
         raise HTTPException(
             status_code=404,
             detail="Patient not found"
         )
 
+
     return patient
 
+
+
+# ==========================================================
+# Update Patient
+# ==========================================================
 
 @router.put(
     "/{patient_id}",
@@ -105,16 +133,46 @@ def update_patient(
         patient
     )
 
+
     if not updated:
+
         raise HTTPException(
             status_code=404,
             detail="Patient not found"
         )
 
+
     return updated
 
 
-@router.delete("/{patient_id}")
+
+# ==========================================================
+# Patient Visit History
+# ==========================================================
+
+@router.get(
+    "/{patient_id}/visits"
+)
+def patient_visits(
+    patient_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+
+    return PatientService.get_patient_visits(
+        db,
+        patient_id
+    )
+
+
+
+# ==========================================================
+# Delete Patient (Soft Delete)
+# ==========================================================
+
+@router.delete(
+    "/{patient_id}"
+)
 def delete_patient(
     patient_id: int,
     db: Session = Depends(get_db),
@@ -126,11 +184,14 @@ def delete_patient(
         patient_id
     )
 
+
     if not deleted:
+
         raise HTTPException(
             status_code=404,
             detail="Patient not found"
         )
+
 
     return {
         "message": "Patient deactivated successfully"

@@ -1,4 +1,5 @@
 from datetime import datetime, date, time
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Integer,
@@ -7,98 +8,125 @@ from sqlalchemy import (
     Time,
     DateTime,
     Float,
-    ForeignKey
+    ForeignKey,
 )
-
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import (
+    Mapped,
+    mapped_column,
+    relationship,
+)
 
 from app.database.database import Base
 
+if TYPE_CHECKING:
+    from app.models.patient import Patient
+    from app.models.doctor import Doctor
+
 
 class OPDVisit(Base):
-
     __tablename__ = "opd_visits"
-
 
     id: Mapped[int] = mapped_column(
         Integer,
         primary_key=True,
-        index=True
+        index=True,
     )
-
 
     patient_id: Mapped[int] = mapped_column(
         ForeignKey("patients.id"),
-        nullable=False
+        nullable=False,
     )
-
 
     doctor_id: Mapped[int] = mapped_column(
         ForeignKey("doctors.id"),
-        nullable=False
+        nullable=False,
     )
-
 
     token_number: Mapped[int] = mapped_column(
         Integer,
-        nullable=False
+        nullable=False,
     )
-
 
     visit_date: Mapped[date] = mapped_column(
         Date,
-        default=date.today
+        default=date.today,
     )
-
 
     visit_day: Mapped[str] = mapped_column(
         String(20),
-        nullable=False
+        nullable=False,
     )
-
 
     visit_time: Mapped[time] = mapped_column(
         Time,
-        default=datetime.now().time
+        nullable=False,
     )
-
 
     consultation_fee: Mapped[float] = mapped_column(
         Float,
-        default=0
+        default=0,
     )
 
+    visit_number: Mapped[str] = mapped_column(
+        String(30),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
+
+    discount: Mapped[float] = mapped_column(
+        Float,
+        default=0,
+    )
+
+    amount_received: Mapped[float] = mapped_column(
+        Float,
+        default=0,
+    )
+
+    payment_method: Mapped[str] = mapped_column(
+        String(20),
+        default="Cash",
+    )
+
+    payment_status: Mapped[str] = mapped_column(
+        String(20),
+        default="Paid",
+    )
+
+    print_count: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+    )
 
     status: Mapped[str] = mapped_column(
         String(20),
-        default="Waiting"
+        default="Waiting",
     )
 
-
-    cancel_reason: Mapped[str] = mapped_column(
+    cancel_reason: Mapped[str | None] = mapped_column(
         String(255),
-        nullable=True
+        nullable=True,
     )
-
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow
+        default=datetime.utcnow,
     )
-
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,
-        onupdate=datetime.utcnow
+        onupdate=datetime.utcnow,
     )
 
-
-    patient = relationship(
-        "Patient"
+    # Relationships
+    patient: Mapped["Patient"] = relationship(
+        "Patient",
+        back_populates="visits",
     )
 
-
-    doctor = relationship(
-        "Doctor"
+    doctor: Mapped["Doctor"] = relationship(
+        "Doctor",
+        back_populates="visits",
     )

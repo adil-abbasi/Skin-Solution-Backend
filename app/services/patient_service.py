@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
-
+from app.models.opd_visit import OPDVisit
 from app.models.patient import Patient
 from app.schemas.patient import PatientCreate, PatientUpdate
 from app.utils.code_generator import generate_code
@@ -76,6 +76,13 @@ class PatientService:
 
         return obj
 
+    @staticmethod
+    def get_patient_visits(db, patient_id):
+
+     return db.query(OPDVisit).filter(
+        OPDVisit.patient_id == patient_id
+    ).all()
+    
     @staticmethod
     def delete(
         db: Session,

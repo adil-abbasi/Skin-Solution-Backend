@@ -1,31 +1,85 @@
-from pydantic import BaseModel, EmailStr
-from typing import Optional
+from datetime import datetime
+
+from sqlalchemy import Integer, String, Boolean, DateTime
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.database.database import Base
 
 
-class ClinicSettingBase(BaseModel):
-    clinic_name: str
-    clinic_address: str
-    clinic_phone: str
-    clinic_email: Optional[EmailStr] = None
-    receipt_footer: Optional[str] = None
-    logo_path: Optional[str] = None
+class ClinicSettings(Base):
+
+    __tablename__ = "clinic_settings"
 
 
-class ClinicSettingCreate(ClinicSettingBase):
-    pass
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
 
 
-class ClinicSettingUpdate(BaseModel):
-    clinic_name: Optional[str] = None
-    clinic_address: Optional[str] = None
-    clinic_phone: Optional[str] = None
-    clinic_email: Optional[EmailStr] = None
-    receipt_footer: Optional[str] = None
-    logo_path: Optional[str] = None
+    clinic_name: Mapped[str] = mapped_column(
+        String(100),
+        default="My Clinic"
+    )
 
 
-class ClinicSettingResponse(ClinicSettingBase):
-    id: int
+    address: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True
+    )
 
-    class Config:
-        from_attributes = True
+
+    phone: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True
+    )
+
+
+    footer_text: Mapped[str] = mapped_column(
+        String(255),
+        default="Thank you for visiting"
+    )
+
+
+    show_doctor: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True
+    )
+
+
+    show_patient: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True
+    )
+
+
+    currency: Mapped[str] = mapped_column(
+        String(10),
+        default="Rs."
+    )
+
+
+    default_fee: Mapped[int] = mapped_column(
+        Integer,
+        default=1000
+    )
+
+
+    auto_reset_token: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True
+    )
+
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow
+    )
+
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow
+    )

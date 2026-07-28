@@ -8,7 +8,8 @@ from app.schemas.doctor import (
     DoctorResponse,
     DoctorUpdate
 )
-
+from app.dependencies.auth import get_current_user
+from app.services.doctor_service import DoctorService
 from app.services.doctor_service import DoctorService
 
 from app.dependencies.auth import admin_required
@@ -34,6 +35,16 @@ def create_doctor(
         doctor
     )
 
+@router.get("/{doctor_id}/visits")
+def get_doctor_visits(
+    doctor_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    return DoctorService.get_doctor_visits(
+        db,
+        doctor_id
+    )
 
 @router.get(
     "/",
@@ -116,4 +127,4 @@ def delete_doctor(
 
     return {
         "message": "Doctor deactivated successfully"
-    }
+    }   

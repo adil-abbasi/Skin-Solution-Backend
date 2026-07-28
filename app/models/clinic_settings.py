@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from datetime import datetime
 
-from app.database.base import Base
+from app.database.database import Base
 
 
 class ClinicSettings(Base):
@@ -16,23 +16,22 @@ class ClinicSettings(Base):
     )
 
 
+    # Clinic Profile
+
     clinic_name = Column(
         String,
         default="My Clinic"
     )
-
 
     address = Column(
         String,
         nullable=True
     )
 
-
     phone = Column(
         String,
         nullable=True
     )
-
 
     email = Column(
         String,
@@ -40,11 +39,20 @@ class ClinicSettings(Base):
     )
 
 
-    receipt_footer = Column(
+    logo = Column(
         String,
-        default="Thank you for visiting"
+        nullable=True
     )
 
+
+    footer_text = Column(
+        String,
+        nullable=True
+    )
+
+
+
+    # Print Settings
 
     show_doctor = Column(
         Boolean,
@@ -58,23 +66,29 @@ class ClinicSettings(Base):
     )
 
 
-    currency = Column(
-        String,
-        default="Rs."
-    )
 
-
-    default_fee = Column(
-        Integer,
-        default=1000
-    )
-
+    # OPD Settings
 
     auto_reset_token = Column(
         Boolean,
         default=True
     )
 
+
+    opd_closing_time = Column(
+        String,
+        default="22:00"
+    )
+
+
+    token_prefix = Column(
+        String,
+        default="T"
+    )
+
+
+
+    # System
 
     created_at = Column(
         DateTime,

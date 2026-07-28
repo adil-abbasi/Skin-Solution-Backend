@@ -1,143 +1,259 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database.dependencies import get_db
-
 from app.dependencies.auth import get_current_user
-
-from app.schemas.opd import (
-    TodayQueueResponse,
-    TokenSlipResponse
-)
 
 from app.schemas.opd_visit import (
     OPDVisitCreate,
-    OPDVisitResponse
-)
-
-from app.schemas.queue import (
-    CancelVisitRequest,
-    MessageResponse
+    OPDVisitUpdate,
+    OPDVisitResponse,
+    TokenPrintResponse,
 )
 
 from app.services.opd_service import OPDService
+from app.services.opd_history_service import OPDHistoryService
 
 
 router = APIRouter(
     prefix="/opd",
-    tags=["OPD"]
+    tags=["OPD"],
 )
 
 
-@router.put(
-    "/{visit_id}/complete",
-    response_model=MessageResponse
-)
-def complete_visit(
-    visit_id: int,
+# ==================================================
+# OPD HISTORY
+# IMPORTANT: Keep before /{visit_id}
+# ==================================================
+
+@router.get("/history")
+def get_opd_history(
+    period: str = "today",
+    search: str | None = None,
+    doctor_id: int | None = None,
+    status: str | None = None,
+    start_date=None,
+    end_date=None,
+    page: int = 1,
+    page_size: int = 20,
+
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
 ):
 
-    ok = OPDService.complete_visit(
-        db,
-        visit_id
+    return OPDHistoryService.get_history(
+
+        db=db,
+
+        period=period,
+
+        search=search,
+
+        doctor_id=doctor_id,
+
+        status=status,
+
+        start_date=start_date,
+
+        end_date=end_date,
+
+        page=page,
+
+        page_size=page_size,
+
     )
 
-    if not ok:
-        raise HTTPException(
-            status_code=404,
-            detail="Visit not found"
-        )
 
-    return {
-        "message": "Visit completed successfully"
-    }
+# ==================================================
+# CREATE VISIT
+# ==================================================
 
-
-@router.put(
-    "/{visit_id}/cancel",
-    response_model=MessageResponse
+@router.post(
+    "/",
+    response_model=OPDVisitResponse,
 )
-def cancel_visit(
-    visit_id: int,
-    data: CancelVisitRequest,
+def create_visit(
+    visit: OPDVisitCreate,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
 ):
 
-    ok = OPDService.cancel_visit(
+    return OPDService.create_visit(
+        db,
+        visit,
+    )
+
+
+# ==================================================
+# CHANGE STATUS
+# ==================================================
+
+@router.put("/{visit_id}/status")
+def change_status(
+    visit_id: int,
+    status: str,
+
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+
+    return OPDService.change_status(
         db,
         visit_id,
-        data.reason
+        status,
     )
 
-    if not ok:
-        raise HTTPException(
-            status_code=404,
-            detail="Visit not found"
-        )
+
+# ==================================================
+# ALL VISITS
+# ==================================================
+
+@router.get(
+    "/",
+    response_model=list[OPDVisitResponse],
+)
+def get_all_visits(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+
+    return OPDService.get_all(db)
+
+
+# ==================================================
+# TODAY QUEUE
+# ==================================================
+
+@router.get("/today")
+def today_visits(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+
+    return OPDService.get_today_visits(db)
+
+
+# ==================================================
+# DASHBOARD
+# ==================================================
+
+@router.get("/dashboard")
+def dashboard(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+
+    return OPDService.dashboard(db)
+
+
+# ==================================================
+# SINGLE VISIT
+# KEEP BELOW STATIC ROUTES
+# ==================================================
+
+@router.get(
+    "/{visit_id}",
+    response_model=OPDVisitResponse,
+)
+def get_visit(
+    visit_id: int,
+
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+
+    return OPDService.get_visit(
+        db,
+        visit_id,
+    )
+
+
+# ==================================================
+# UPDATE VISIT
+# ==================================================
+
+@router.put(
+    "/{visit_id}",
+    response_model=OPDVisitResponse,
+)
+def update_visit(
+    visit_id: int,
+
+    visit: OPDVisitUpdate,
+
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+
+    return OPDService.update_visit(
+        db,
+        visit_id,
+        visit,
+    )
+
+
+# ==================================================
+# CANCEL VISIT
+# ==================================================
+
+@router.post("/{visit_id}/cancel")
+def cancel_visit(
+    visit_id: int,
+
+    reason: str,
+
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+
+    OPDService.cancel_visit(
+        db,
+        visit_id,
+        reason,
+    )
 
     return {
         "message": "Visit cancelled successfully"
     }
 
 
+# ==================================================
+# REPRINT TOKEN
+# ==================================================
+
 @router.get(
-    "/today",
-    response_model=list[TodayQueueResponse]
+    "/{visit_id}/reprint",
+    response_model=TokenPrintResponse,
 )
-def today_queue(
+def reprint_token(
+    visit_id: int,
+
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
 ):
 
-    return OPDService.today_queue(db)
-
-
-@router.post(
-    "/generate-token",
-    response_model=OPDVisitResponse
-)
-def generate_token(
-    opd_data: OPDVisitCreate,
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
-):
-
-    visit, error = OPDService.generate_token(
+    return OPDService.reprint_token(
         db,
-        opd_data
+        visit_id,
     )
 
-    if error:
-        raise HTTPException(
-            status_code=404,
-            detail=error
-        )
 
-    return visit
-
+# ==================================================
+# PRINT TOKEN
+# ==================================================
 
 @router.get(
-    "/token/{visit_id}",
-    response_model=TokenSlipResponse
+    "/{visit_id}/print",
+    response_model=TokenPrintResponse,
 )
 def print_token(
     visit_id: int,
+
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
 ):
 
-    slip = OPDService.get_token_slip(
+    return OPDService.get_print_data(
         db,
-        visit_id
+        visit_id,
     )
-
-    if not slip:
-        raise HTTPException(
-            status_code=404,
-            detail="Token not found"
-        )
-
-    return slip

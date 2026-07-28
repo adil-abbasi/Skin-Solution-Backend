@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 
-from app.models.clinic_setting import ClinicSetting
+from backend.app.models.clinic_settings import ClinicSetting
 from app.schemas.clinic_setting import (
     ClinicSettingCreate,
     ClinicSettingUpdate,

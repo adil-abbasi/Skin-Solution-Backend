@@ -1,8 +1,7 @@
 from datetime import date
-from pathlib import Path
 
 from fastapi import APIRouter, Depends
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.database.dependencies import get_db
@@ -17,15 +16,21 @@ router = APIRouter(
 )
 
 
+# ==================================================
+# Export CSV
+# ==================================================
+
 @router.get("/csv")
 def export_csv(
+
     start_date: date,
     end_date: date,
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
-):
 
-    Path("exports").mkdir(exist_ok=True)
+    db: Session = Depends(get_db),
+
+    current_user=Depends(get_current_user),
+
+):
 
     filename = "exports/opd_report.csv"
 
@@ -36,8 +41,67 @@ def export_csv(
         filename
     )
 
+
     return FileResponse(
+
         path=filename,
+
         media_type="text/csv",
+
         filename="opd_report.csv"
+
+    )
+
+
+
+# ==================================================
+# Export OPD History Excel
+# ==================================================
+
+@router.get("/opd-history")
+def export_opd_history(
+
+    period: str = "today",
+
+    search: str | None = None,
+
+    doctor_id: int | None = None,
+
+    status: str | None = None,
+
+    db: Session = Depends(get_db),
+
+    current_user=Depends(get_current_user),
+
+):
+
+    excel_file = ExportService.export_opd_history(
+
+        db=db,
+
+        period=period,
+
+        search=search,
+
+        doctor_id=doctor_id,
+
+        status=status,
+
+    )
+
+
+    return StreamingResponse(
+
+        excel_file,
+
+        media_type=
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+
+        headers={
+
+            "Content-Disposition":
+            "attachment; filename=opd_history.xlsx"
+
+        }
+
     )

@@ -1,133 +1,510 @@
-from sqlalchemy.orm import Session
+from datetime import date, datetime
 
-from app.models.opd_visit import OPDVisit
+from fastapi import HTTPException
+from sqlalchemy import func
+from sqlalchemy.orm import Session, joinedload
+
 from app.models.patient import Patient
 from app.models.doctor import Doctor
-from datetime import date
+from app.models.opd_visit import OPDVisit
+
+from app.schemas.opd_visit import (
+    OPDVisitCreate,
+    OPDVisitUpdate,
+)
 
 class OPDService:
 
 
-    @staticmethod
-    def today_queue(db: Session):
+    # ==========================================================
+    # Generate Visit Number
+    # ==========================================================
 
-        visits = (
+    @staticmethod
+    def generate_visit_number(db: Session):
+
+        today = date.today().strftime("%Y%m%d")
+
+        count = (
             db.query(OPDVisit)
             .filter(
                 OPDVisit.visit_date == date.today()
             )
-            .order_by(OPDVisit.token_number)
-            .all()
+            .count()
         )
 
-        result = []
+        return f"VIS-{today}-{count + 1:06d}"
 
-        for visit in visits:
 
-            result.append({
-                "visit_id": visit.id,
-                "token_number": visit.token_number,
 
-                "patient_code": visit.patient.patient_code,
-                "patient_name": visit.patient.name,
-                "phone": visit.patient.phone,
+    # ==========================================================
+    # Generate Token
+    # ==========================================================
 
-                "doctor_name": visit.doctor.name,
-
-                "visit_date": visit.visit_date,
-                "visit_time": visit.visit_time,
-
-                "consultation_fee": visit.consultation_fee,
-
-                "status": visit.status
-            })
-
-        return result
     @staticmethod
-    def complete_visit(db: Session, visit_id: int):
+    def generate_token(db: Session):
 
-        visit = db.query(OPDVisit).filter(
-            OPDVisit.id == visit_id
-        ).first()
+        last_token = (
+            db.query(
+                func.max(OPDVisit.token_number)
+            )
+            .filter(
+                OPDVisit.visit_date == date.today()
+            )
+            .scalar()
+        )
+
+
+        if last_token is None:
+            return 1
+
+
+        return last_token + 1
+
+
+
+    # ==========================================================
+    # Get Patient
+    # ==========================================================
+
+    @staticmethod
+    def get_patient(
+        db: Session,
+        patient_id:int
+    ):
+
+        patient = (
+            db.query(Patient)
+            .filter(
+                Patient.id == patient_id,
+                Patient.is_active == True
+            )
+            .first()
+        )
+
+
+        if not patient:
+            raise HTTPException(
+                status_code=404,
+                detail="Patient not found"
+            )
+
+
+        return patient
+
+
+
+    # ==========================================================
+    # Get Doctor
+    # ==========================================================
+
+    @staticmethod
+    def get_doctor(
+        db:Session,
+        doctor_id:int
+    ):
+
+        doctor = (
+            db.query(Doctor)
+            .filter(
+                Doctor.id == doctor_id,
+                Doctor.is_active == True
+            )
+            .first()
+        )
+
+
+        if not doctor:
+            raise HTTPException(
+                status_code=404,
+                detail="Doctor not found"
+            )
+
+
+        return doctor
+
+
+
+    # ==========================================================
+    # Get Visit
+    # ==========================================================
+
+    @staticmethod
+    def get_visit(
+        db:Session,
+        visit_id:int
+    ):
+
+        visit = (
+            db.query(OPDVisit)
+            .options(
+                joinedload(OPDVisit.patient),
+                joinedload(OPDVisit.doctor)
+            )
+            .filter(
+                OPDVisit.id == visit_id
+            )
+            .first()
+        )
+
 
         if not visit:
-            return False
 
-        visit.status = "Completed"
+            raise HTTPException(
+                status_code=404,
+                detail="Visit not found"
+            )
+
+
+        return visit
+
+
+
+    # ==========================================================
+    # Create Visit
+    # ==========================================================
+
+    @staticmethod
+    def create_visit(
+        db:Session,
+        visit:OPDVisitCreate
+    ):
+
+
+        patient = OPDService.get_patient(
+            db,
+            visit.patient_id
+        )
+
+
+        doctor = OPDService.get_doctor(
+            db,
+            visit.doctor_id
+        )
+
+
+        token = OPDService.generate_token(db)
+
+
+        visit_number = OPDService.generate_visit_number(db)
+
+
+
+        db_visit = OPDVisit(
+
+            visit_number=visit_number,
+
+            patient_id=patient.id,
+
+            doctor_id=doctor.id,
+
+            token_number=token,
+
+            visit_date=date.today(),
+
+            visit_day=date.today().strftime("%A"),
+
+            visit_time=datetime.now().time(),
+
+            consultation_fee=visit.consultation_fee,
+
+            discount=visit.discount,
+
+            amount_received=visit.amount_received,
+
+            payment_method=visit.payment_method,
+
+            payment_status="Paid",
+
+            print_count=0,
+
+            status="Waiting"
+
+        )
+
+
+        db.add(db_visit)
 
         db.commit()
 
-        return True
-    
-@staticmethod
-def cancel_visit(
-    db: Session,
-    visit_id: int,
-    reason: str
-):
+        db.refresh(db_visit)
 
-    visit = db.query(OPDVisit).filter(
-        OPDVisit.id == visit_id
-    ).first()
 
-    if not visit:
-        return False
+        return db_visit
 
-    visit.status = "Cancelled"
-    visit.cancel_reason = reason
 
-    db.commit()
 
-    return True
-        
+    # ==========================================================
+    # All Visits
+    # ==========================================================
+
     @staticmethod
-    def get_token_slip(
-        db: Session,
-        visit_id: int
-    ):
+    def get_all(db:Session):
 
-        visit = db.query(OPDVisit).filter(
-            OPDVisit.id == visit_id
-        ).first()
+        return (
 
+            db.query(OPDVisit)
 
-        if not visit:
-            return None
+            .options(
+                joinedload(OPDVisit.patient),
+                joinedload(OPDVisit.doctor)
+            )
 
+            .order_by(
+                OPDVisit.created_at.desc()
+            )
 
-        patient = db.query(Patient).filter(
-            Patient.id == visit.patient_id
-        ).first()
+            .all()
 
-
-        doctor = db.query(Doctor).filter(
-            Doctor.id == visit.doctor_id
-        ).first()
+        )
 
 
 
-        return {
+    # ==========================================================
+    # Today's Queue
+    # ==========================================================
+
+    @staticmethod
+    def get_today_visits(db: Session):
+
+      visits = (
+        db.query(OPDVisit)
+        .options(
+            joinedload(OPDVisit.patient),
+            joinedload(OPDVisit.doctor)
+        )
+        .filter(
+            OPDVisit.visit_date == date.today()
+        )
+        .order_by(
+            OPDVisit.token_number
+        )
+        .all()
+    )
+
+      return [
+         {
+            "id": visit.id,
+            "visit_number": visit.visit_number,
+            "patient_id": visit.patient_id,
+            "doctor_id": visit.doctor_id,
+
+            "patient_name": visit.patient.name,
+            "father_name": visit.patient.father_name,
+            "doctor_name": visit.doctor.name,
 
             "token_number": visit.token_number,
 
-            "patient_name": patient.name,
-            "father_husband_name": patient.father_name,
-            "age": patient.age,
-            "gender": patient.gender,
-            "phone": patient.phone,
-            "patient_code": patient.patient_code,
+            "consultation_fee": visit.consultation_fee,
+            "discount": visit.discount,
+            "amount_received": visit.amount_received,
 
+            "payment_method": visit.payment_method,
+            "payment_status": visit.payment_status,
 
-            "doctor_name": doctor.name,
-            "department": doctor.department,
-
+            "status": visit.status,
+            "cancel_reason": visit.cancel_reason,
 
             "visit_date": visit.visit_date,
             "visit_day": visit.visit_day,
             "visit_time": visit.visit_time,
 
+            "print_count": visit.print_count,
+            "created_at": visit.created_at,
+            "updated_at": visit.updated_at,
+        }
+        for visit in visits
+    ]
+
+
+    # ==========================================================
+    # Update Visit
+    # ==========================================================
+
+    @staticmethod
+    def update_visit(
+        db:Session,
+        visit_id:int,
+        visit:OPDVisitUpdate
+    ):
+
+        db_visit = OPDService.get_visit(
+            db,
+            visit_id
+        )
+
+
+        data = visit.model_dump(
+            exclude_unset=True
+        )
+
+
+        for key,value in data.items():
+
+            setattr(
+                db_visit,
+                key,
+                value
+            )
+
+
+        db.commit()
+
+        db.refresh(db_visit)
+
+
+        return db_visit
+
+
+
+    # ==========================================================
+    # Change Status
+    # ==========================================================
+
+    @staticmethod
+    def change_status(
+        db:Session,
+        visit_id:int,
+        status:str
+    ):
+
+
+        visit = OPDService.get_visit(
+            db,
+            visit_id
+        )
+
+
+        allowed=[
+            "Waiting",
+            "Called",
+            "Completed",
+            "Cancelled"
+        ]
+
+
+        if status not in allowed:
+
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid status"
+            )
+
+
+        visit.status=status
+
+
+        db.commit()
+
+        db.refresh(visit)
+
+
+        return visit
+
+
+
+    # ==========================================================
+    # Cancel Visit
+    # ==========================================================
+
+    @staticmethod
+    def cancel_visit(
+        db:Session,
+        visit_id:int,
+        reason:str
+    ):
+
+        visit = OPDService.get_visit(
+            db,
+            visit_id
+        )
+
+
+        visit.status="Cancelled"
+
+        visit.cancel_reason=reason
+
+
+        db.commit()
+
+        db.refresh(visit)
+
+
+        return visit
+
+
+
+    # ==========================================================
+    # Reprint
+    # ==========================================================
+
+    @staticmethod
+    def reprint_token(
+        db:Session,
+        visit_id:int
+    ):
+
+
+        visit = OPDService.get_visit(
+            db,
+            visit_id
+        )
+
+
+        visit.print_count += 1
+
+
+        db.commit()
+
+
+        return OPDService.get_print_data(
+            db,
+            visit_id
+        )
+
+
+
+    # ==========================================================
+    # Print Data
+    # ==========================================================
+
+    @staticmethod
+    def get_print_data(
+        db: Session,
+        visit_id: int
+    ):
+        visit = (
+            db.query(OPDVisit)
+            .options(
+                joinedload(OPDVisit.patient),
+                joinedload(OPDVisit.doctor)
+            )
+            .filter(OPDVisit.id == visit_id)
+            .first()
+        )
+
+        if not visit:
+            raise HTTPException(
+                status_code=404,
+                detail="Visit not found"
+            )
+
+        return {
+            "clinic_name": "SkinSolutions",
+            "visit_number": visit.visit_number,
+            "token_number": visit.token_number,
+
+            "patient_name": visit.patient.name,
+            "father_name": visit.patient.father_name,
+            "age": visit.patient.age,
+            "gender": visit.patient.gender,
+
+            "doctor_name": visit.doctor.name,
 
             "consultation_fee": visit.consultation_fee,
+            "payment_method": visit.payment_method,
 
-            "status": visit.status
+            "visit_date": visit.visit_date,
+            "visit_day": visit.visit_day,
+            "visit_time": visit.visit_time,
         }

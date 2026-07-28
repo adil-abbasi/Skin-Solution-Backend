@@ -1,46 +1,64 @@
 from sqlalchemy.orm import Session
 
-from app.models.settings import Setting
-from app.schemas.settings import SettingsUpdate
+from app.models.clinic_settings import ClinicSettings
+
 
 
 class SettingsService:
 
-    @staticmethod
-    def get_settings(db: Session):
 
-        settings = db.query(Setting).first()
+    @staticmethod
+    def get_settings(
+        db: Session
+    ):
+
+        settings = db.query(
+            ClinicSettings
+        ).first()
+
 
         if not settings:
 
-            settings = Setting()
+            settings = ClinicSettings()
 
             db.add(settings)
+
             db.commit()
+
             db.refresh(settings)
 
+
         return settings
+
+
 
     @staticmethod
     def update_settings(
         db: Session,
-        data: SettingsUpdate
+        data
     ):
 
-        settings = db.query(Setting).first()
 
-        if not settings:
+        settings = SettingsService.get_settings(db)
 
-            settings = Setting()
 
-            db.add(settings)
-            db.commit()
-            db.refresh(settings)
+        update_data = data.model_dump(
+            exclude_unset=True
+        )
 
-        for key, value in data.model_dump().items():
-            setattr(settings, key, value)
+
+        for key,value in update_data.items():
+
+            setattr(
+                settings,
+                key,
+                value
+            )
+
 
         db.commit()
+
         db.refresh(settings)
+
 
         return settings
