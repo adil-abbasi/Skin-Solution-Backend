@@ -31,22 +31,25 @@ class AuthService:
 
     @staticmethod
     def create_default_admin(db: Session):
-
         admin = db.query(User).filter(
             User.username == "admin"
         ).first()
 
-        if admin:
-            return
+        hashed_pwd = AuthService.hash_password("admin123")
 
-        admin = User(
-            username="admin",
-            password=AuthService.hash_password("admin123"),
-            full_name="System Administrator",
-            role="Admin"
-        )
-
-        db.add(admin)
+        if not admin:
+            admin = User(
+                username="admin",
+                password=hashed_pwd,
+                full_name="System Administrator",
+                role="Admin"
+            )
+            db.add(admin)
+        else:
+            # Agar user pehle se hai lekin password update karna ho ya role theek karna ho
+            admin.password = hashed_pwd
+            admin.role = "Admin"
+            
         db.commit()
 
     @staticmethod
